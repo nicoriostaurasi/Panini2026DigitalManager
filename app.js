@@ -1,6 +1,7 @@
 (function () {
   const STORAGE_KEY = "digital-panini-2026-progress-v1";
   const USER_KEY = "digital-panini-2026-user-v1";
+  const EXCHANGE_KEY = "digital-panini-2026-exchanges-v1";
   const base = window.CROMOS_BASE || {};
   const imageMap = window.CROMOS_IMAGES || {};
   const state = {
@@ -9,6 +10,8 @@
     query: { text: "", compact: "", tokens: [] },
     username: loadUsername(),
     quantities: loadProgress(),
+    exchanges: loadExchanges(),
+    exchangeDraft: { give: [], receive: [] },
     friendQuantities: null,
   };
 
@@ -49,6 +52,24 @@
     bulkRepeatedBtn: document.querySelector("#bulkRepeatedBtn"),
     repeatedList: document.querySelector("#repeatedList"),
     missingList: document.querySelector("#missingList"),
+    openExchangeBtn: document.querySelector("#openExchangeBtn"),
+    manageExchangeBtn: document.querySelector("#manageExchangeBtn"),
+    exchangeSummary: document.querySelector("#exchangeSummary"),
+    exchangePreview: document.querySelector("#exchangePreview"),
+    exchangeModal: document.querySelector("#exchangeModal"),
+    closeExchangeBtn: document.querySelector("#closeExchangeBtn"),
+    exchangeForm: document.querySelector("#exchangeForm"),
+    exchangeName: document.querySelector("#exchangeName"),
+    exchangeGiveSearch: document.querySelector("#exchangeGiveSearch"),
+    exchangeReceiveSearch: document.querySelector("#exchangeReceiveSearch"),
+    exchangeGiveSelected: document.querySelector("#exchangeGiveSelected"),
+    exchangeReceiveSelected: document.querySelector("#exchangeReceiveSelected"),
+    exchangeGiveResults: document.querySelector("#exchangeGiveResults"),
+    exchangeReceiveResults: document.querySelector("#exchangeReceiveResults"),
+    exchangeAllowRepeated: document.querySelector("#exchangeAllowRepeated"),
+    exchangeValidation: document.querySelector("#exchangeValidation"),
+    resetExchangeFormBtn: document.querySelector("#resetExchangeFormBtn"),
+    exchangeList: document.querySelector("#exchangeList"),
   };
 
   const groups = Object.keys(base);
@@ -109,6 +130,17 @@
     els.compareFile.addEventListener("change", importFriendProgress);
     els.clearCompareBtn.addEventListener("click", clearFriendProgress);
     els.clearBtn.addEventListener("click", clearProgress);
+    els.openExchangeBtn.addEventListener("click", openExchangeModal);
+    els.manageExchangeBtn.addEventListener("click", openExchangeModal);
+    els.closeExchangeBtn.addEventListener("click", closeExchangeModal);
+    els.exchangeModal.addEventListener("click", (event) => {
+      if (event.target === els.exchangeModal) closeExchangeModal();
+    });
+    els.exchangeForm.addEventListener("submit", saveExchangeFromForm);
+    els.resetExchangeFormBtn.addEventListener("click", resetExchangeForm);
+    els.exchangeGiveSearch.addEventListener("input", renderExchangePickers);
+    els.exchangeReceiveSearch.addEventListener("input", renderExchangePickers);
+    els.exchangeAllowRepeated.addEventListener("change", renderExchangePickers);
 
     els.content.addEventListener("click", (event) => {
       if (!event.target.closest("button, input, textarea, label")) {
@@ -367,6 +399,331 @@
     const missing = cards.filter((card) => qty(card.codigo) === 0).slice(0, 80);
     els.repeatedList.replaceChildren(...listNodes(repeated, (card) => `x${qty(card.codigo) - 1}`));
     els.missingList.replaceChildren(...listNodes(missing, () => "falta"));
+    renderExchangeSummary();
+  }
+
+  function renderExchangeSummary() {
+    const pending = state.exchanges.length;
+    els.exchangeSummary.textContent = pending
+      ? `${pending} cambio${pending === 1 ? "" : "s"} pendiente${pending === 1 ? "" : "s"} guardado${pending === 1 ? "" : "s"} solo en este navegador.`
+      : "Todavia no hay cambios pendientes.";
+    const nodes = state.exchanges.slice(0, 3).map((exchange) => {
+      const item = document.createElement("div");
+      item.className = "mini-item";
+      item.innerHTML = `<strong>${escapeHtml(exchange.title)}</strong><span>${escapeHtml(exchange.give.join(", "))} -> ${escapeHtml(exchange.receive.join(", "))}</span><div class="exchange-mini-preview">${exchangePreviewList([...exchange.give, ...exchange.receive].slice(0, 4))}</div>`;
+      return item;
+    });
+    els.exchangePreview.replaceChildren(...nodes);
+    renderExchangeModalList();
+  }
+
+  function openExchangeModal() {
+    els.workspace.classList.remove("sidebars-collapsed");
+    els.exchangeModal.classList.remove("hidden");
+    renderExchangeModalList();
+    renderExchangePickers();
+    setTimeout(() => els.exchangeGiveSearch.focus(), 0);
+  }
+
+  function closeExchangeModal() {
+    els.exchangeModal.classList.add("hidden");
+  }
+
+  function resetExchangeForm() {
+    els.exchangeForm.reset();
+    state.exchangeDraft = { give: [], receive: [] };
+    els.exchangeValidation.textContent = "";
+    els.exchangeValidation.classList.remove("ok");
+    renderExchangePickers();
+    els.exchangeGiveSearch.focus();
+  }
+
+  function saveExchangeFromForm(event) {
+    event.preventDefault();
+    const draft = exchangeDraftFromForm();
+    const validation = validateExchange(draft);
+    if (!validation.ok) {
+      showExchangeValidation(validation.message, false);
+      return;
+    }
+
+    state.exchanges.unshift({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      title: draft.title || defaultExchangeTitle(draft),
+      give: draft.give,
+      receive: draft.receive,
+      allowRepeated: draft.allowRepeated,
+    });
+    saveExchanges();
+    resetExchangeForm();
+    render();
+    showExchangeValidation("Cambio guardado.", true);
+  }
+
+  function exchangeDraftFromForm() {
+    return {
+      title: els.exchangeName.value.trim(),
+      give: [...state.exchangeDraft.give],
+      receive: [...state.exchangeDraft.receive],
+      allowRepeated: els.exchangeAllowRepeated.checked,
+    };
+  }
+
+  function renderExchangePickers() {
+    renderSelectedExchangeCards("give");
+    renderSelectedExchangeCards("receive");
+    renderPickerResults("give");
+    renderPickerResults("receive");
+    const draft = exchangeDraftFromForm();
+    if (!draft.give.length && !draft.receive.length) {
+      showExchangeValidation("", false);
+      return;
+    }
+    const validation = validateExchange(draft);
+    showExchangeValidation(validation.message, validation.ok);
+  }
+
+  function renderSelectedExchangeCards(kind) {
+    const target = kind === "give" ? els.exchangeGiveSelected : els.exchangeReceiveSelected;
+    const codes = state.exchangeDraft[kind];
+    if (!codes.length) {
+      const empty = document.createElement("p");
+      empty.className = "selected-empty";
+      empty.textContent = kind === "give" ? "Todavia no elegiste que entregas." : "Todavia no elegiste que recibis.";
+      target.replaceChildren(empty);
+      return;
+    }
+
+    const chips = codes.map((code, index) => {
+      const card = cardByCode.get(normalizeCode(code));
+      const chip = document.createElement("button");
+      chip.className = "selected-chip";
+      chip.type = "button";
+      chip.innerHTML = `${stickerThumb(card)}<strong>${escapeHtml(code)}</strong><span>${escapeHtml(card?.label || "")}</span><i aria-hidden="true">x</i>`;
+      chip.title = "Quitar";
+      chip.addEventListener("click", () => {
+        state.exchangeDraft[kind].splice(index, 1);
+        renderExchangePickers();
+      });
+      return chip;
+    });
+    target.replaceChildren(...chips);
+  }
+
+  function renderPickerResults(kind) {
+    const input = kind === "give" ? els.exchangeGiveSearch : els.exchangeReceiveSearch;
+    const target = kind === "give" ? els.exchangeGiveResults : els.exchangeReceiveResults;
+    const query = buildQuery(input.value);
+    const selected = countCodes(state.exchangeDraft[kind]);
+    let resultCards = cards.filter((card) => {
+      const matches = !query.text || matchesExchangeQuery(card, query);
+      if (!matches) return false;
+      if (kind === "give" && state.friendQuantities && qtyFrom(state.friendQuantities, card.codigo) > 0) return false;
+      if (kind === "receive" && state.friendQuantities && qtyFrom(state.friendQuantities, card.codigo) <= (selected.get(card.codigo) || 0) + 1) return false;
+      if (!query.text && kind === "give") return qty(card.codigo) > (selected.get(card.codigo) || 0) + 1;
+      if (!query.text && kind === "receive" && !els.exchangeAllowRepeated.checked) return qty(card.codigo) === 0;
+      return true;
+    });
+
+    resultCards = resultCards
+      .sort((a, b) => exchangeSortScore(kind, b, selected) - exchangeSortScore(kind, a, selected))
+      .slice(0, 10);
+
+    if (!resultCards.length) {
+      const empty = document.createElement("p");
+      empty.className = "selected-empty";
+      empty.textContent = "Sin resultados.";
+      target.replaceChildren(empty);
+      return;
+    }
+
+    const nodes = resultCards.map((card) => {
+      const selectedCount = selected.get(card.codigo) || 0;
+      const available = qty(card.codigo) - selectedCount;
+      const cannotGive = kind === "give" && available <= 1;
+      const cannotReceive = kind === "receive" && !els.exchangeAllowRepeated.checked && qty(card.codigo) > 0;
+      const friendCannotGive = kind === "receive" && state.friendQuantities && qtyFrom(state.friendQuantities, card.codigo) <= selectedCount + 1;
+      const friendDoesNotNeed = kind === "give" && state.friendQuantities && qtyFrom(state.friendQuantities, card.codigo) > 0;
+      const button = document.createElement("button");
+      button.className = "picker-result";
+      button.type = "button";
+      button.disabled = cannotGive || cannotReceive || friendCannotGive || friendDoesNotNeed;
+      button.innerHTML = `
+        ${stickerThumb(card)}
+        <span><strong>${escapeHtml(card.codigo)}</strong>${escapeHtml(card.label)}</span>
+        <small>${escapeHtml(card.groupLabel)} · ${exchangeCardStatus(card, kind, selectedCount)}</small>
+      `;
+      button.addEventListener("click", () => addExchangeCard(kind, card.codigo));
+      return button;
+    });
+    target.replaceChildren(...nodes);
+  }
+
+  function matchesExchangeQuery(card, query) {
+    if (query.exactCode) return card.codeCompact === query.compact;
+    if (card.searchCompact.includes(query.compact)) return true;
+    return query.tokens.every((token) => card.searchText.includes(token));
+  }
+
+  function exchangeSortScore(kind, card, selected) {
+    const selectedCount = selected.get(card.codigo) || 0;
+    if (kind === "give") {
+      const friendBoost = state.friendQuantities && qtyFrom(state.friendQuantities, card.codigo) === 0 ? 8 : 0;
+      return friendBoost + Math.max(0, qty(card.codigo) - selectedCount - 1);
+    }
+    const friendAvailable = state.friendQuantities ? Math.max(0, qtyFrom(state.friendQuantities, card.codigo) - selectedCount - 1) : 0;
+    if (qty(card.codigo) === 0) return 3;
+    return friendAvailable * 5 + (els.exchangeAllowRepeated.checked ? 1 : 0);
+  }
+
+  function exchangeCardStatus(card, kind, selectedCount) {
+    const current = qty(card.codigo);
+    if (kind === "give") {
+      const available = Math.max(0, current - selectedCount - 1);
+      const friendText = state.friendQuantities
+        ? qtyFrom(state.friendQuantities, card.codigo) === 0 ? " · le falta" : " · ya la tiene"
+        : "";
+      return available ? `repetidas x${available}${friendText}` : current ? `sin repetida libre${friendText}` : "no la tenes";
+    }
+    if (state.friendQuantities) {
+      const friendExtras = Math.max(0, qtyFrom(state.friendQuantities, card.codigo) - selectedCount - 1);
+      if (!friendExtras) return current > 0 ? `ya tenes x${current} · amigo sin repetida` : "amigo sin repetida";
+      return current > 0 ? `ya tenes x${current} · amigo x${friendExtras}` : `te falta · amigo x${friendExtras}`;
+    }
+    if (current > 0) return `ya tenes x${current}`;
+    return "te falta";
+  }
+
+  function addExchangeCard(kind, code) {
+    state.exchangeDraft[kind].push(code);
+    const input = kind === "give" ? els.exchangeGiveSearch : els.exchangeReceiveSearch;
+    input.value = "";
+    renderExchangePickers();
+    input.focus();
+  }
+
+  function showExchangeValidation(message, ok) {
+    els.exchangeValidation.textContent = message;
+    els.exchangeValidation.classList.toggle("ok", Boolean(ok && message));
+  }
+
+  function validateExchange(exchange) {
+    if (!exchange.give.length) return { ok: false, message: "Agrega al menos una figurita para entregar." };
+    if (!exchange.receive.length) return { ok: false, message: "Agrega al menos una figurita para recibir." };
+
+    const giveCounts = countCodes(exchange.give);
+    for (const [code, amount] of giveCounts) {
+      const current = qty(code);
+      if (current <= 0) return { ok: false, message: `No podes ofrecer ${code} porque no la tenes.` };
+      if (current - amount < 1) return { ok: false, message: `${code} tiene que quedar en tu album; solo podes ofrecer repetidas.` };
+      if (state.friendQuantities && qtyFrom(state.friendQuantities, code) > 0) return { ok: false, message: `${code} no le sirve a tu amigo porque ya la tiene.` };
+    }
+
+    if (state.friendQuantities) {
+      const receiveCounts = countCodes(exchange.receive);
+      for (const [code, amount] of receiveCounts) {
+        if (qtyFrom(state.friendQuantities, code) - amount < 1) return { ok: false, message: `Tu amigo no tiene repetida libre de ${code}.` };
+      }
+    }
+
+    if (!exchange.allowRepeated) {
+      const repeatedReceive = exchange.receive.find((code) => qty(code) > 0);
+      if (repeatedReceive) return { ok: false, message: `Ya tenes ${repeatedReceive}. Marca "Aceptar repetidas" para recibirla igual.` };
+    }
+
+    return { ok: true, message: "El cambio esta listo para guardar." };
+  }
+
+  function countCodes(codes) {
+    const counts = new Map();
+    for (const code of codes) counts.set(code, (counts.get(code) || 0) + 1);
+    return counts;
+  }
+
+  function resolveCode(code) {
+    return cardByCode.get(normalizeCode(code))?.codigo || "";
+  }
+
+  function defaultExchangeTitle(exchange) {
+    return `${exchange.give.length} x ${exchange.receive.length}`;
+  }
+
+  function stickerThumb(card) {
+    if (card?.image) return `<img class="exchange-thumb" src="${escapeHtml(card.image)}" alt="">`;
+    return `<span class="exchange-thumb thumb-fallback">${escapeHtml(card?.codigo || "?")}</span>`;
+  }
+
+  function exchangeCardPreview(code) {
+    const card = cardByCode.get(normalizeCode(code));
+    return `
+      <span class="exchange-card-preview">
+        ${stickerThumb(card)}
+        <span><strong>${escapeHtml(code)}</strong>${escapeHtml(card?.label || "")}</span>
+      </span>
+    `;
+  }
+
+  function exchangePreviewList(codes) {
+    return codes.map(exchangeCardPreview).join("");
+  }
+
+  function renderExchangeModalList() {
+    if (!els.exchangeList) return;
+    if (!state.exchanges.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No hay cambios pendientes.";
+      els.exchangeList.replaceChildren(empty);
+      return;
+    }
+
+    const nodes = state.exchanges.map((exchange) => {
+      const item = document.createElement("article");
+      item.className = "exchange-item";
+      item.innerHTML = `
+        <div>
+          <strong>${escapeHtml(exchange.title)}</strong>
+          <small>${escapeHtml(dateLabel(exchange.createdAt))}</small>
+        </div>
+        <div class="exchange-codes">
+          <span><b>Entrego</b>${exchangePreviewList(exchange.give)}</span>
+          <span><b>Recibo</b>${exchangePreviewList(exchange.receive)}</span>
+        </div>
+        <div class="exchange-actions">
+          <button class="primary" type="button" data-complete="${escapeHtml(exchange.id)}">OK</button>
+          <button class="ghost danger" type="button" data-delete="${escapeHtml(exchange.id)}">Borrar</button>
+        </div>
+      `;
+      item.querySelector("[data-complete]").addEventListener("click", () => completeExchange(exchange.id));
+      item.querySelector("[data-delete]").addEventListener("click", () => deleteExchange(exchange.id));
+      return item;
+    });
+    els.exchangeList.replaceChildren(...nodes);
+  }
+
+  function completeExchange(id) {
+    const exchange = state.exchanges.find((item) => item.id === id);
+    if (!exchange) return;
+    const validation = validateExchange(exchange);
+    if (!validation.ok) {
+      showExchangeValidation(validation.message, false);
+      return;
+    }
+
+    for (const [code, amount] of countCodes(exchange.give)) state.quantities[code] = qty(code) - amount;
+    for (const [code, amount] of countCodes(exchange.receive)) state.quantities[code] = qty(code) + amount;
+    state.exchanges = state.exchanges.filter((item) => item.id !== id);
+    saveProgress();
+    saveExchanges();
+    render();
+    showExchangeValidation("Cambio completado y cantidades actualizadas.", true);
+  }
+
+  function deleteExchange(id) {
+    state.exchanges = state.exchanges.filter((item) => item.id !== id);
+    saveExchanges();
+    render();
   }
 
   function renderComparePanel() {
@@ -484,6 +841,19 @@
 
   function saveProgress() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.quantities));
+  }
+
+  function loadExchanges() {
+    try {
+      const value = JSON.parse(localStorage.getItem(EXCHANGE_KEY)) || [];
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveExchanges() {
+    localStorage.setItem(EXCHANGE_KEY, JSON.stringify(state.exchanges));
   }
 
   function progressPayload() {
@@ -786,6 +1156,17 @@
 
   function normalizeCode(value) {
     return normalize(value).replace(/\s+/g, " ").trim();
+  }
+
+  function dateLabel(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   function escapeHtml(value) {

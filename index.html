@@ -99,6 +99,14 @@
         <aside class="trade-panel" aria-label="Intercambios">
           <h2>Intercambio</h2>
 
+          <section class="exchange-box">
+            <h3>Cambios cargados</h3>
+            <p id="exchangeSummary" class="compare-summary">Todavia no hay cambios pendientes.</p>
+            <button id="openExchangeBtn" class="primary full-width" type="button">Agregar cambio</button>
+            <button id="manageExchangeBtn" class="ghost full-width" type="button">Gestionar cambios</button>
+            <div id="exchangePreview" class="mini-list compact-list"></div>
+          </section>
+
           <section class="compare-box">
             <h3>Comparar con mi amigo</h3>
             <label class="ghost file-btn full-width" title="Importar progreso de un amigo">
@@ -130,6 +138,60 @@
         </aside>
       </section>
     </main>
+
+    <div id="exchangeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="exchangeModalTitle">
+      <section class="modal-card">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Intercambios locales</p>
+            <h2 id="exchangeModalTitle">Agregar cambio</h2>
+          </div>
+          <button id="closeExchangeBtn" class="ghost icon-btn" type="button" aria-label="Cerrar">x</button>
+        </div>
+
+        <form id="exchangeForm" class="exchange-form">
+          <label>
+            <span>Nombre</span>
+            <input id="exchangeName" type="text" maxlength="48" placeholder="Ej: Cambio con Fede">
+          </label>
+
+          <div class="exchange-pickers">
+            <section class="exchange-picker">
+              <label>
+                <span>Entrego</span>
+                <input id="exchangeGiveSearch" type="search" placeholder="Buscar repetida">
+              </label>
+              <div id="exchangeGiveSelected" class="selected-cards"></div>
+              <div id="exchangeGiveResults" class="picker-results"></div>
+            </section>
+
+            <section class="exchange-picker">
+              <label>
+                <span>Recibo</span>
+                <input id="exchangeReceiveSearch" type="search" placeholder="Buscar faltante">
+              </label>
+              <div id="exchangeReceiveSelected" class="selected-cards"></div>
+              <div id="exchangeReceiveResults" class="picker-results"></div>
+            </section>
+          </div>
+
+          <label class="check-row">
+            <input id="exchangeAllowRepeated" type="checkbox">
+            <span>Aceptar repetidas</span>
+          </label>
+          <p id="exchangeValidation" class="form-message" aria-live="polite"></p>
+          <div class="modal-actions">
+            <button class="primary" type="submit">Guardar cambio</button>
+            <button id="resetExchangeFormBtn" class="ghost" type="button">Limpiar</button>
+          </div>
+        </form>
+
+        <section class="exchange-list-block">
+          <h3>Pendientes</h3>
+          <div id="exchangeList" class="exchange-list"></div>
+        </section>
+      </section>
+    </div>
 
     <template id="cardTemplate">
       <article class="card">
