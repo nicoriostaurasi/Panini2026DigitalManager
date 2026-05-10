@@ -20,10 +20,15 @@
           </div>
         </div>
         <div class="actions">
+          <label class="user-field" title="Nombre para identificar tu progreso">
+            <span>Usuario</span>
+            <input id="usernameInput" type="text" maxlength="32" placeholder="Tu nombre">
+          </label>
+          <button id="exportQrBtn" class="ghost" type="button" title="Exportar progreso como QR">QR</button>
           <button id="exportBtn" class="ghost" type="button" title="Exportar progreso">Exportar</button>
           <label class="ghost file-btn" title="Importar progreso">
             Importar
-            <input id="importFile" type="file" accept="application/json">
+            <input id="importFile" type="file" accept="application/json,image/png,image/jpeg,image/webp">
           </label>
         </div>
       </header>
@@ -98,7 +103,7 @@
             <h3>Comparar con mi amigo</h3>
             <label class="ghost file-btn full-width" title="Importar progreso de un amigo">
               Cargar progreso amigo
-              <input id="compareFile" type="file" accept="application/json">
+              <input id="compareFile" type="file" accept="application/json,image/png,image/jpeg,image/webp">
             </label>
             <p id="compareSummary" class="compare-summary">Importá el progreso exportado por otra persona para ver cambios posibles.</p>
             <button id="clearCompareBtn" class="link-btn hidden" type="button">Quitar comparación</button>
@@ -144,6 +149,8 @@
 
     <script src="cromos_base.js"></script>
     <script src="cromos_images.js"></script>
+    <script src="qrcode.js"></script>
+    <script src="jsQR.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

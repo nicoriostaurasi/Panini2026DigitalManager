@@ -1,16 +1,20 @@
 (function () {
   const STORAGE_KEY = "digital-panini-2026-progress-v1";
+  const USER_KEY = "digital-panini-2026-user-v1";
   const base = window.CROMOS_BASE || {};
   const imageMap = window.CROMOS_IMAGES || {};
   const state = {
     group: "all",
     filter: "all",
     query: { text: "", compact: "", tokens: [] },
+    username: loadUsername(),
     quantities: loadProgress(),
     friendQuantities: null,
   };
 
   const els = {
+    usernameInput: document.querySelector("#usernameInput"),
+    exportQrBtn: document.querySelector("#exportQrBtn"),
     exportBtn: document.querySelector("#exportBtn"),
     importFile: document.querySelector("#importFile"),
     compareFile: document.querySelector("#compareFile"),
@@ -69,6 +73,12 @@
   bindEvents();
 
   function bindEvents() {
+    els.usernameInput.value = state.username;
+    els.usernameInput.addEventListener("input", (event) => {
+      state.username = event.target.value.trim();
+      saveUsername();
+    });
+
     els.searchInput.addEventListener("input", (event) => {
       state.query = buildQuery(event.target.value);
       renderCards();
@@ -94,6 +104,7 @@
     els.bulkAddBtn.addEventListener("click", () => applyBulk(1));
     els.bulkRepeatedBtn.addEventListener("click", () => applyBulk(2));
     els.exportBtn.addEventListener("click", exportProgress);
+    els.exportQrBtn.addEventListener("click", exportQrProgress);
     els.importFile.addEventListener("change", importProgress);
     els.compareFile.addEventListener("change", importFriendProgress);
     els.clearCompareBtn.addEventListener("click", clearFriendProgress);
@@ -455,6 +466,14 @@
     return Number((quantities && quantities[code]) || 0);
   }
 
+  function loadUsername() {
+    return (localStorage.getItem(USER_KEY) || "").trim();
+  }
+
+  function saveUsername() {
+    localStorage.setItem(USER_KEY, state.username);
+  }
+
   function loadProgress() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
@@ -467,54 +486,245 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.quantities));
   }
 
-  function exportProgress() {
-    const payload = {
+  function progressPayload() {
+    return {
       app: "digital-panini-2026-manager",
+      user: state.username || "Sin usuario",
       exportedAt: new Date().toISOString(),
       quantities: state.quantities,
     };
+  }
+
+  function exportProgress() {
+    const payload = progressPayload();
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "digital-panini-2026-progreso.json";
+    link.download = `${timestampForFile(payload.exportedAt)}-${fileSafeName(payload.user)}-panini-2026-progreso.json`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportQrProgress() {
+    if (!state.username) {
+      const name = prompt("Nombre de usuario para identificar este progreso:");
+      if (name === null) return;
+      state.username = name.trim() || "Sin usuario";
+      els.usernameInput.value = state.username;
+      saveUsername();
+    }
+
+    try {
+      const payload = progressPayload();
+      const qrText = await qrPayloadText(payload);
+      const imageUrl = await qrImageUrl(qrText, payload);
+      const link = document.createElement("a");
+      link.href = imageUrl;
+      link.download = `${timestampForFile(payload.exportedAt)}-${fileSafeName(payload.user)}-panini-2026-qr.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
+    } catch (error) {
+      alert(error.message || "No pude generar el QR de progreso.");
+    }
+  }
+
+  async function qrPayloadText(payload) {
+    const compactPayload = {
+      a: "dp26",
+      v: 1,
+      u: payload.user,
+      t: payload.exportedAt,
+      q: payload.quantities,
+    };
+    const json = JSON.stringify(compactPayload);
+    const bytes = new TextEncoder().encode(json);
+    if ("CompressionStream" in window) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+      const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+      return `DP26GZ:${base64Url(compressed)}`;
+    }
+    return `DP26JSON:${base64Url(bytes)}`;
+  }
+
+  async function qrImageUrl(text, payload) {
+    if (typeof qrcode !== "function") {
+      throw new Error("No está disponible el generador QR.");
+    }
+
+    const qr = qrcode(0, "L");
+    qr.addData(text);
+    qr.make();
+
+    const modules = qr.getModuleCount();
+    const scale = 8;
+    const quiet = 4;
+    const qrSize = (modules + quiet * 2) * scale;
+    const header = 108;
+    const footer = 62;
+    const canvas = document.createElement("canvas");
+    canvas.width = qrSize;
+    canvas.height = qrSize + header + footer;
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "#f8faf3";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#07110d";
+    ctx.fillRect(0, 0, canvas.width, header);
+    ctx.fillStyle = "#31c58a";
+    ctx.font = "800 18px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Digital Panini 2026", canvas.width / 2, 32);
+    ctx.fillStyle = "#f8faf3";
+    ctx.font = "900 28px system-ui, sans-serif";
+    ctx.fillText(payload.user || "Sin usuario", canvas.width / 2, 68);
+    ctx.fillStyle = "#9fb0a8";
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.fillText(`${Object.keys(payload.quantities).length} códigos con progreso`, canvas.width / 2, 92);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, header, canvas.width, qrSize);
+    ctx.fillStyle = "#050505";
+    for (let row = 0; row < modules; row += 1) {
+      for (let col = 0; col < modules; col += 1) {
+        if (qr.isDark(row, col)) {
+          ctx.fillRect((col + quiet) * scale, header + (row + quiet) * scale, scale, scale);
+        }
+      }
+    }
+
+    ctx.fillStyle = "#07110d";
+    ctx.fillRect(0, header + qrSize, canvas.width, footer);
+    ctx.fillStyle = "#f8faf3";
+    ctx.font = "800 14px system-ui, sans-serif";
+    ctx.fillText("Progreso exportado como QR", canvas.width / 2, header + qrSize + 26);
+    ctx.fillStyle = "#9fb0a8";
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.fillText(new Date(payload.exportedAt).toLocaleString(), canvas.width / 2, header + qrSize + 46);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("No pude generar la imagen PNG del QR.");
+    return URL.createObjectURL(blob);
+  }
+
+  function base64Url(bytes) {
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function base64UrlToBytes(value) {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function timestampForFile(value) {
+    const date = value ? new Date(value) : new Date();
+    const parts = [
+      date.getFullYear() % 100,
+      date.getMonth() + 1,
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+    ];
+    return parts.map((part) => String(part).padStart(2, "0")).join("");
+  }
+
+  function fileSafeName(value) {
+    return normalize(value || "usuario").replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "usuario";
   }
 
   function importProgress(event) {
     const [file] = event.target.files;
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const payload = JSON.parse(reader.result);
+    parseProgressFile(file)
+      .then((payload) => {
         state.quantities = quantitiesFromPayload(payload);
+        if (payload.user && !state.username) {
+          state.username = String(payload.user).trim();
+          els.usernameInput.value = state.username;
+          saveUsername();
+        }
         saveProgress();
         render();
-      } catch {
-        alert("No pude leer ese archivo de progreso.");
-      }
-    };
-    reader.readAsText(file);
+      })
+      .catch((error) => alert(error.message || "No pude leer ese archivo de progreso."));
     event.target.value = "";
   }
 
   function importFriendProgress(event) {
     const [file] = event.target.files;
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const payload = JSON.parse(reader.result);
+    parseProgressFile(file)
+      .then((payload) => {
         state.friendQuantities = quantitiesFromPayload(payload);
         renderComparePanel();
-      } catch {
-        alert("No pude leer ese archivo de progreso.");
-      }
-    };
-    reader.readAsText(file);
+      })
+      .catch((error) => alert(error.message || "No pude leer ese archivo de progreso."));
     event.target.value = "";
+  }
+
+  async function parseProgressFile(file) {
+    if (file.type.startsWith("image/")) {
+      const qrText = await readQrFromImage(file);
+      return payloadFromQrText(qrText);
+    }
+    const text = await file.text();
+    return JSON.parse(text);
+  }
+
+  async function readQrFromImage(file) {
+    if (typeof jsQR !== "function") throw new Error("No está disponible el lector QR.");
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const result = jsQR(imageData.data, imageData.width, imageData.height);
+    if (!result?.data) throw new Error("No encontré un QR válido en esa imagen.");
+    return result.data;
+  }
+
+  async function payloadFromQrText(text) {
+    if (text.startsWith("DP26GZ:")) {
+      const bytes = base64UrlToBytes(text.slice(7));
+      let jsonText;
+      if ("DecompressionStream" in window) {
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+        jsonText = await new Response(stream).text();
+      } else {
+        throw new Error("Este navegador no puede descomprimir el QR.");
+      }
+      return expandCompactPayload(JSON.parse(jsonText));
+    }
+    if (text.startsWith("DP26JSON:")) {
+      const bytes = base64UrlToBytes(text.slice(9));
+      return expandCompactPayload(JSON.parse(new TextDecoder().decode(bytes)));
+    }
+    throw new Error("Ese QR no parece ser de Digital Panini 2026.");
+  }
+
+  function expandCompactPayload(payload) {
+    if (payload?.a === "dp26") {
+      return {
+        app: "digital-panini-2026-manager",
+        user: payload.u || "",
+        exportedAt: payload.t || "",
+        quantities: payload.q || {},
+      };
+    }
+    return payload;
   }
 
   function clearFriendProgress() {
