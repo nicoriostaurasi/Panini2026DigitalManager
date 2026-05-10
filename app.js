@@ -142,7 +142,9 @@
 
   function renderCards() {
     const visible = filteredCards();
-    const albumMode = state.group !== "all";
+    const allMode = state.group === "all";
+    const albumMode = !allMode;
+    const stickerGridMode = allMode || albumMode;
     const introMode = state.group === "Intro";
     const hostMode = state.group === "Host City";
     const spreadMode = isTeamAlbum(state.group);
@@ -150,7 +152,7 @@
     els.content.classList.toggle("album-spread-mode", spreadMode);
     els.content.classList.toggle("intro-spread-mode", introMode);
     els.content.classList.toggle("host-spread-mode", hostMode);
-    els.cardsGrid.classList.toggle("album-grid", albumMode);
+    els.cardsGrid.classList.toggle("album-grid", stickerGridMode);
     els.cardsGrid.classList.toggle("album-spread", spreadMode);
     els.cardsGrid.classList.toggle("intro-spread", introMode);
     els.cardsGrid.classList.toggle("host-spread", hostMode);
