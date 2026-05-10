@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Digital Panini 2026 Manager</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span class="ball"></span>
+            <span class="pitch-line"></span>
+          </div>
+          <div>
+            <p class="eyebrow">Digital Panini 2026</p>
+            <h1>Álbum Manager</h1>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="exportBtn" class="ghost" type="button" title="Exportar progreso">Exportar</button>
+          <label class="ghost file-btn" title="Importar progreso">
+            Importar
+            <input id="importFile" type="file" accept="application/json">
+          </label>
+        </div>
+      </header>
+
+      <section class="stats" aria-label="Resumen">
+        <article>
+          <span>Completado</span>
+          <strong id="statProgress">0%</strong>
+          <div class="meter"><i id="progressBar"></i></div>
+        </article>
+        <article>
+          <span>Faltan</span>
+          <strong id="statMissing">0</strong>
+        </article>
+        <article>
+          <span>Repetidas</span>
+          <strong id="statRepeated">0</strong>
+        </article>
+        <article>
+          <span>Extras</span>
+          <strong id="statExtras">0</strong>
+        </article>
+      </section>
+
+      <section class="tools">
+        <div class="search-wrap">
+          <input id="searchInput" type="search" placeholder="Buscar código, nombre o selección">
+        </div>
+        <div class="segmented" role="group" aria-label="Filtro">
+          <button class="active" data-filter="all" type="button">Todas</button>
+          <button data-filter="missing" type="button">Faltan</button>
+          <button data-filter="owned" type="button">Pegadas</button>
+          <button data-filter="repeated" type="button">Repetidas</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <aside class="sidebar" aria-label="Grupos">
+          <div class="sidebar-head">
+            <h2>Grupos</h2>
+            <button id="clearBtn" class="link-btn" type="button">Reiniciar</button>
+          </div>
+          <input id="groupSearchInput" class="group-search" type="search" placeholder="Buscar página">
+          <nav id="groupList" class="group-list"></nav>
+        </aside>
+
+        <section class="content">
+          <div class="content-head">
+            <div>
+              <h2 id="currentGroup">Todas las figuritas</h2>
+              <p id="currentSummary"></p>
+            </div>
+            <button id="toggleBulkBtn" class="primary" type="button">Cargar paquete</button>
+          </div>
+
+          <section id="bulkPanel" class="bulk-panel hidden">
+            <textarea id="bulkInput" placeholder="Pegá códigos separados por coma, espacio o salto de línea. Ej: ARG 9, PAN 3, HOST CITY MIAMI"></textarea>
+            <div class="bulk-actions">
+              <button id="bulkAddBtn" class="primary" type="button">Sumar al álbum</button>
+              <button id="bulkRepeatedBtn" class="ghost" type="button">Marcar como repetidas</button>
+            </div>
+          </section>
+
+          <div id="cardsGrid" class="cards-grid" aria-live="polite"></div>
+          <p id="emptyState" class="empty hidden">No hay figuritas para este filtro.</p>
+        </section>
+
+        <aside class="trade-panel" aria-label="Intercambios">
+          <h2>Intercambio</h2>
+
+          <section class="compare-box">
+            <h3>Comparar con mi amigo</h3>
+            <label class="ghost file-btn full-width" title="Importar progreso de un amigo">
+              Cargar progreso amigo
+              <input id="compareFile" type="file" accept="application/json">
+            </label>
+            <p id="compareSummary" class="compare-summary">Importá el progreso exportado por otra persona para ver cambios posibles.</p>
+            <button id="clearCompareBtn" class="link-btn hidden" type="button">Quitar comparación</button>
+          </section>
+
+          <section id="friendCanGiveBlock" class="hidden">
+            <h3>Te puede dar</h3>
+            <div id="friendCanGive" class="mini-list"></div>
+          </section>
+
+          <section id="youCanGiveBlock" class="hidden">
+            <h3>Vos le podés dar</h3>
+            <div id="youCanGive" class="mini-list"></div>
+          </section>
+
+          <section>
+            <h3>Tus repetidas</h3>
+            <div id="repeatedList" class="mini-list"></div>
+          </section>
+          <section>
+            <h3>Te faltan</h3>
+            <div id="missingList" class="mini-list"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <template id="cardTemplate">
+      <article class="card">
+        <div class="card-main">
+          <img class="sticker-art" alt="">
+          <span class="code"></span>
+          <strong class="name"></strong>
+          <small class="group"></small>
+        </div>
+        <div class="qty">
+          <button class="minus" type="button" title="Restar">−</button>
+          <span class="qty-value">0</span>
+          <button class="plus" type="button" title="Sumar">+</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="cromos_base.js"></script>
+    <script src="cromos_images.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
