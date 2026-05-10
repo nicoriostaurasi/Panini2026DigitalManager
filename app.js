@@ -537,7 +537,8 @@
   }
 
   function repairMojibake(text) {
-    if (!/[\u00c3\u00c2\u00c4\u00c5\u00e2]/.test(text)) return text;
+    const hasMojibakePair = /(?:Ã[\u0080-\u00bf\u0192\u201a-\u2026\u2030\u0160\u0152\u017D\u2018-\u201D\u2022\u2122]|\u00c2[\u0080-\u00bf]|\u00e2[\u0080-\u00bf\u201a-\u2026\u2030\u0160\u0152\u017D\u2018-\u201D\u2022\u2122])/.test(text);
+    if (!hasMojibakePair) return text;
     try {
       const bytes = Uint8Array.from([...text].map((char) => char.charCodeAt(0) & 255));
       return new TextDecoder("utf-8").decode(bytes).replace(/\u00e2\u20ac\u2122/g, "’");
