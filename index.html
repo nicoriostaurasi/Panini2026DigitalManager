@@ -139,6 +139,32 @@
       </section>
     </main>
 
+    <div id="packageModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="packageModalTitle">
+      <section class="modal-card compact-modal">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Paquete digital</p>
+            <h2 id="packageModalTitle">Cargar paquete</h2>
+          </div>
+          <button id="closePackageBtn" class="ghost icon-btn" type="button" aria-label="Cerrar">x</button>
+        </div>
+
+        <form id="packageForm" class="exchange-form">
+          <label>
+            <span>Buscar figurita</span>
+            <input id="packageSearch" type="search" placeholder="Buscar codigo, nombre o seleccion">
+          </label>
+          <div id="packageSelected" class="selected-cards package-selected"></div>
+          <div id="packageResults" class="picker-results package-results"></div>
+          <p id="packageValidation" class="form-message ok" aria-live="polite"></p>
+          <div class="modal-actions">
+            <button class="primary" type="submit">Agregar al album</button>
+            <button id="resetPackageBtn" class="ghost" type="button">Limpiar</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <div id="exchangeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="exchangeModalTitle">
       <section class="modal-card">
         <div class="modal-head">

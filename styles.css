@@ -1372,6 +1372,10 @@ h3 {
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.62);
 }
 
+.compact-modal {
+  width: min(680px, 100%);
+}
+
 .modal-head,
 .modal-actions,
 .exchange-actions {
@@ -1456,6 +1460,16 @@ h3 {
   background: #050706;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.package-selected {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.package-results {
+  max-height: min(430px, 46vh);
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .selected-chip,

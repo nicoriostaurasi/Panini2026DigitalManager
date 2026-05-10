@@ -12,6 +12,7 @@
     quantities: loadProgress(),
     exchanges: loadExchanges(),
     exchangeDraft: { give: [], receive: [] },
+    packageDraft: [],
     friendQuantities: null,
   };
 
@@ -45,11 +46,15 @@
     statRepeated: document.querySelector("#statRepeated"),
     statExtras: document.querySelector("#statExtras"),
     progressBar: document.querySelector("#progressBar"),
-    bulkPanel: document.querySelector("#bulkPanel"),
     toggleBulkBtn: document.querySelector("#toggleBulkBtn"),
-    bulkInput: document.querySelector("#bulkInput"),
-    bulkAddBtn: document.querySelector("#bulkAddBtn"),
-    bulkRepeatedBtn: document.querySelector("#bulkRepeatedBtn"),
+    packageModal: document.querySelector("#packageModal"),
+    closePackageBtn: document.querySelector("#closePackageBtn"),
+    packageForm: document.querySelector("#packageForm"),
+    packageSearch: document.querySelector("#packageSearch"),
+    packageSelected: document.querySelector("#packageSelected"),
+    packageResults: document.querySelector("#packageResults"),
+    packageValidation: document.querySelector("#packageValidation"),
+    resetPackageBtn: document.querySelector("#resetPackageBtn"),
     repeatedList: document.querySelector("#repeatedList"),
     missingList: document.querySelector("#missingList"),
     openExchangeBtn: document.querySelector("#openExchangeBtn"),
@@ -117,13 +122,14 @@
       });
     });
 
-    els.toggleBulkBtn.addEventListener("click", () => {
-      els.bulkPanel.classList.toggle("hidden");
-      if (!els.bulkPanel.classList.contains("hidden")) els.bulkInput.focus();
+    els.toggleBulkBtn.addEventListener("click", openPackageModal);
+    els.closePackageBtn.addEventListener("click", closePackageModal);
+    els.packageModal.addEventListener("click", (event) => {
+      if (event.target === els.packageModal) closePackageModal();
     });
-
-    els.bulkAddBtn.addEventListener("click", () => applyBulk(1));
-    els.bulkRepeatedBtn.addEventListener("click", () => applyBulk(2));
+    els.packageForm.addEventListener("submit", savePackageFromForm);
+    els.packageSearch.addEventListener("input", renderPackagePicker);
+    els.resetPackageBtn.addEventListener("click", resetPackageForm);
     els.exportBtn.addEventListener("click", exportProgress);
     els.exportQrBtn.addEventListener("click", exportQrProgress);
     els.importFile.addEventListener("change", importProgress);
@@ -392,6 +398,127 @@
     els.statRepeated.textContent = repeated;
     els.statExtras.textContent = extras;
     els.progressBar.style.width = `${progress}%`;
+  }
+
+  function openPackageModal() {
+    els.packageModal.classList.remove("hidden");
+    renderPackagePicker();
+    setTimeout(() => els.packageSearch.focus(), 0);
+  }
+
+  function closePackageModal() {
+    els.packageModal.classList.add("hidden");
+  }
+
+  function resetPackageForm() {
+    state.packageDraft = [];
+    els.packageSearch.value = "";
+    showPackageMessage("");
+    renderPackagePicker();
+    els.packageSearch.focus();
+  }
+
+  function savePackageFromForm(event) {
+    event.preventDefault();
+    if (!state.packageDraft.length) {
+      showPackageMessage("Elegí al menos una figurita para cargar el paquete.", false);
+      return;
+    }
+
+    for (const code of state.packageDraft) state.quantities[code] = qty(code) + 1;
+    const loaded = state.packageDraft.length;
+    saveProgress();
+    resetPackageForm();
+    render();
+    showPackageMessage(`${loaded} figurita${loaded === 1 ? "" : "s"} agregada${loaded === 1 ? "" : "s"} al album.`, true);
+    closePackageModal();
+  }
+
+  function renderPackagePicker() {
+    renderPackageSelected();
+    renderPackageResults();
+    if (!state.packageDraft.length) showPackageMessage("Buscá y tocá cada figurita del paquete.", true);
+    else showPackageMessage(`${state.packageDraft.length} elegida${state.packageDraft.length === 1 ? "" : "s"} para cargar.`, true);
+  }
+
+  function renderPackageSelected() {
+    if (!state.packageDraft.length) {
+      const empty = document.createElement("p");
+      empty.className = "selected-empty";
+      empty.textContent = "Todavia no elegiste figuritas.";
+      els.packageSelected.replaceChildren(empty);
+      return;
+    }
+
+    const chips = state.packageDraft.map((code, index) => {
+      const card = cardByCode.get(normalizeCode(code));
+      const chip = document.createElement("button");
+      chip.className = "selected-chip";
+      chip.type = "button";
+      chip.title = "Quitar";
+      chip.innerHTML = `${stickerThumb(card)}<strong>${escapeHtml(code)}</strong><span>${escapeHtml(card?.label || "")}</span><i aria-hidden="true">x</i>`;
+      chip.addEventListener("click", () => {
+        state.packageDraft.splice(index, 1);
+        renderPackagePicker();
+      });
+      return chip;
+    });
+    els.packageSelected.replaceChildren(...chips);
+  }
+
+  function renderPackageResults() {
+    const query = buildQuery(els.packageSearch.value);
+    const selected = new Set(state.packageDraft);
+    let resultCards = cards.filter((card) => {
+      if (selected.has(card.codigo)) return false;
+      if (query.text) return matchesExchangeQuery(card, query);
+      return state.group === "all" || card.group === state.group;
+    });
+
+    resultCards = resultCards
+      .sort((a, b) => packageSortScore(b) - packageSortScore(a))
+      .slice(0, 14);
+
+    if (!resultCards.length) {
+      const empty = document.createElement("p");
+      empty.className = "selected-empty";
+      empty.textContent = "Sin resultados.";
+      els.packageResults.replaceChildren(empty);
+      return;
+    }
+
+    const nodes = resultCards.map((card) => {
+      const button = document.createElement("button");
+      button.className = "picker-result";
+      button.type = "button";
+      button.innerHTML = `
+        ${stickerThumb(card)}
+        <span><strong>${escapeHtml(card.codigo)}</strong>${escapeHtml(card.label)}</span>
+        <small>${escapeHtml(card.groupLabel)} · ${qty(card.codigo) ? `tenes x${qty(card.codigo)}` : "te falta"}</small>
+      `;
+      button.addEventListener("click", () => addPackageCard(card.codigo));
+      return button;
+    });
+    els.packageResults.replaceChildren(...nodes);
+  }
+
+  function packageSortScore(card) {
+    let score = qty(card.codigo) === 0 ? 4 : 1;
+    if (state.group !== "all" && card.group === state.group) score += 3;
+    return score;
+  }
+
+  function addPackageCard(code) {
+    if (state.packageDraft.includes(code)) return;
+    state.packageDraft.push(code);
+    els.packageSearch.value = "";
+    renderPackagePicker();
+    els.packageSearch.focus();
+  }
+
+  function showPackageMessage(message, ok = true) {
+    els.packageValidation.textContent = message;
+    els.packageValidation.classList.toggle("ok", ok);
   }
 
   function renderTradePanel() {
