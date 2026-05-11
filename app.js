@@ -2,6 +2,9 @@
   const STORAGE_KEY = "digital-panini-2026-progress-v1";
   const USER_KEY = "digital-panini-2026-user-v1";
   const EXCHANGE_KEY = "digital-panini-2026-exchanges-v1";
+  const BACKEND_URL_KEY = "digital-panini-2026-sync-backend-url";
+  const OWN_PROFILE_KEY = "digital-panini-2026-own-profile-id";
+  const AUTH_KEY = "digital-panini-2026-sync-auth";
   const base = window.CROMOS_BASE || {};
   const imageMap = window.CROMOS_IMAGES || {};
   const state = {
@@ -12,11 +15,24 @@
     quantities: loadProgress(),
     exchanges: loadExchanges(),
     exchangeDraft: { give: [], receive: [] },
-    packageDraft: [],
     friendQuantities: null,
+    friendLabel: "",
+    backendUrl: loadBackendUrl(),
+    onlineProfiles: [],
+    selectedOnlineProfileId: "",
+    ownProfileId: localStorage.getItem(OWN_PROFILE_KEY) || "",
+    auth: loadAuth(),
   };
 
   const els = {
+    authLanding: document.querySelector("#authLanding"),
+    shell: document.querySelector(".shell"),
+    landingBackendUrlInput: document.querySelector("#landingBackendUrlInput"),
+    landingSyncUserInput: document.querySelector("#landingSyncUserInput"),
+    landingSyncPasswordInput: document.querySelector("#landingSyncPasswordInput"),
+    landingLoginBtn: document.querySelector("#landingLoginBtn"),
+    landingRegisterBtn: document.querySelector("#landingRegisterBtn"),
+    landingAuthStatus: document.querySelector("#landingAuthStatus"),
     usernameInput: document.querySelector("#usernameInput"),
     exportQrBtn: document.querySelector("#exportQrBtn"),
     exportBtn: document.querySelector("#exportBtn"),
@@ -24,6 +40,15 @@
     compareFile: document.querySelector("#compareFile"),
     compareSummary: document.querySelector("#compareSummary"),
     clearCompareBtn: document.querySelector("#clearCompareBtn"),
+    backendUrlInput: document.querySelector("#backendUrlInput"),
+    loadFriendsBtn: document.querySelector("#loadFriendsBtn"),
+    syncManagerBtn: document.querySelector("#syncManagerBtn"),
+    onlineStatus: document.querySelector("#onlineStatus"),
+    onlineFriendsList: document.querySelector("#onlineFriendsList"),
+    friendSearchInput: document.querySelector("#friendSearchInput"),
+    friendSearchResults: document.querySelector("#friendSearchResults"),
+    syncAccountLabel: document.querySelector("#syncAccountLabel"),
+    logoutManagerBtn: document.querySelector("#logoutManagerBtn"),
     friendCanGiveBlock: document.querySelector("#friendCanGiveBlock"),
     youCanGiveBlock: document.querySelector("#youCanGiveBlock"),
     friendCanGive: document.querySelector("#friendCanGive"),
@@ -46,15 +71,6 @@
     statRepeated: document.querySelector("#statRepeated"),
     statExtras: document.querySelector("#statExtras"),
     progressBar: document.querySelector("#progressBar"),
-    toggleBulkBtn: document.querySelector("#toggleBulkBtn"),
-    packageModal: document.querySelector("#packageModal"),
-    closePackageBtn: document.querySelector("#closePackageBtn"),
-    packageForm: document.querySelector("#packageForm"),
-    packageSearch: document.querySelector("#packageSearch"),
-    packageSelected: document.querySelector("#packageSelected"),
-    packageResults: document.querySelector("#packageResults"),
-    packageValidation: document.querySelector("#packageValidation"),
-    resetPackageBtn: document.querySelector("#resetPackageBtn"),
     repeatedList: document.querySelector("#repeatedList"),
     missingList: document.querySelector("#missingList"),
     openExchangeBtn: document.querySelector("#openExchangeBtn"),
@@ -97,12 +113,26 @@
 
   render();
   bindEvents();
+  syncFromBackendOnLoad();
 
   function bindEvents() {
     els.usernameInput.value = state.username;
+    els.backendUrlInput.value = state.backendUrl;
+    els.landingBackendUrlInput.value = state.backendUrl;
+    renderAuth();
     els.usernameInput.addEventListener("input", (event) => {
       state.username = event.target.value.trim();
       saveUsername();
+    });
+    els.backendUrlInput.addEventListener("input", (event) => {
+      state.backendUrl = event.target.value.trim();
+      saveBackendUrl();
+      els.landingBackendUrlInput.value = state.backendUrl;
+    });
+    els.landingBackendUrlInput.addEventListener("input", (event) => {
+      state.backendUrl = event.target.value.trim();
+      saveBackendUrl();
+      els.backendUrlInput.value = state.backendUrl;
     });
 
     els.searchInput.addEventListener("input", (event) => {
@@ -122,19 +152,17 @@
       });
     });
 
-    els.toggleBulkBtn.addEventListener("click", openPackageModal);
-    els.closePackageBtn.addEventListener("click", closePackageModal);
-    els.packageModal.addEventListener("click", (event) => {
-      if (event.target === els.packageModal) closePackageModal();
-    });
-    els.packageForm.addEventListener("submit", savePackageFromForm);
-    els.packageSearch.addEventListener("input", renderPackagePicker);
-    els.resetPackageBtn.addEventListener("click", resetPackageForm);
     els.exportBtn.addEventListener("click", exportProgress);
     els.exportQrBtn.addEventListener("click", exportQrProgress);
     els.importFile.addEventListener("change", importProgress);
     els.compareFile.addEventListener("change", importFriendProgress);
     els.clearCompareBtn.addEventListener("click", clearFriendProgress);
+    els.loadFriendsBtn.addEventListener("click", () => syncFromBackend({ applyOwn: true, manual: true }));
+    els.syncManagerBtn.addEventListener("click", syncManagerStatus);
+    els.friendSearchInput.addEventListener("input", debounce(searchFriends, 250));
+    els.logoutManagerBtn.addEventListener("click", logoutManager);
+    els.landingLoginBtn.addEventListener("click", () => loginManager("login"));
+    els.landingRegisterBtn.addEventListener("click", () => loginManager("register"));
     els.clearBtn.addEventListener("click", clearProgress);
     els.openExchangeBtn.addEventListener("click", openExchangeModal);
     els.manageExchangeBtn.addEventListener("click", openExchangeModal);
@@ -215,6 +243,7 @@
     renderStats();
     renderTradePanel();
     renderComparePanel();
+    renderOnlineFriends();
   }
 
   function cardNode(card) {
@@ -234,8 +263,6 @@
     node.querySelector(".name").textContent = card.label;
     node.querySelector(".group").textContent = card.groupLabel;
     node.querySelector(".qty-value").textContent = count;
-    node.querySelector(".minus").addEventListener("click", () => setQty(card.codigo, Math.max(0, count - 1)));
-    node.querySelector(".plus").addEventListener("click", () => setQty(card.codigo, count + 1));
     return node;
   }
 
@@ -398,127 +425,6 @@
     els.statRepeated.textContent = repeated;
     els.statExtras.textContent = extras;
     els.progressBar.style.width = `${progress}%`;
-  }
-
-  function openPackageModal() {
-    els.packageModal.classList.remove("hidden");
-    renderPackagePicker();
-    setTimeout(() => els.packageSearch.focus(), 0);
-  }
-
-  function closePackageModal() {
-    els.packageModal.classList.add("hidden");
-  }
-
-  function resetPackageForm() {
-    state.packageDraft = [];
-    els.packageSearch.value = "";
-    showPackageMessage("");
-    renderPackagePicker();
-    els.packageSearch.focus();
-  }
-
-  function savePackageFromForm(event) {
-    event.preventDefault();
-    if (!state.packageDraft.length) {
-      showPackageMessage("Elegí al menos una figurita para cargar el paquete.", false);
-      return;
-    }
-
-    for (const code of state.packageDraft) state.quantities[code] = qty(code) + 1;
-    const loaded = state.packageDraft.length;
-    saveProgress();
-    resetPackageForm();
-    render();
-    showPackageMessage(`${loaded} figurita${loaded === 1 ? "" : "s"} agregada${loaded === 1 ? "" : "s"} al album.`, true);
-    closePackageModal();
-  }
-
-  function renderPackagePicker() {
-    renderPackageSelected();
-    renderPackageResults();
-    if (!state.packageDraft.length) showPackageMessage("Buscá y tocá cada figurita del paquete.", true);
-    else showPackageMessage(`${state.packageDraft.length} elegida${state.packageDraft.length === 1 ? "" : "s"} para cargar.`, true);
-  }
-
-  function renderPackageSelected() {
-    if (!state.packageDraft.length) {
-      const empty = document.createElement("p");
-      empty.className = "selected-empty";
-      empty.textContent = "Todavia no elegiste figuritas.";
-      els.packageSelected.replaceChildren(empty);
-      return;
-    }
-
-    const chips = state.packageDraft.map((code, index) => {
-      const card = cardByCode.get(normalizeCode(code));
-      const chip = document.createElement("button");
-      chip.className = "selected-chip";
-      chip.type = "button";
-      chip.title = "Quitar";
-      chip.innerHTML = `${stickerThumb(card)}<strong>${escapeHtml(code)}</strong><span>${escapeHtml(card?.label || "")}</span><i aria-hidden="true">x</i>`;
-      chip.addEventListener("click", () => {
-        state.packageDraft.splice(index, 1);
-        renderPackagePicker();
-      });
-      return chip;
-    });
-    els.packageSelected.replaceChildren(...chips);
-  }
-
-  function renderPackageResults() {
-    const query = buildQuery(els.packageSearch.value);
-    const selected = new Set(state.packageDraft);
-    let resultCards = cards.filter((card) => {
-      if (selected.has(card.codigo)) return false;
-      if (query.text) return matchesExchangeQuery(card, query);
-      return state.group === "all" || card.group === state.group;
-    });
-
-    resultCards = resultCards
-      .sort((a, b) => packageSortScore(b) - packageSortScore(a))
-      .slice(0, 14);
-
-    if (!resultCards.length) {
-      const empty = document.createElement("p");
-      empty.className = "selected-empty";
-      empty.textContent = "Sin resultados.";
-      els.packageResults.replaceChildren(empty);
-      return;
-    }
-
-    const nodes = resultCards.map((card) => {
-      const button = document.createElement("button");
-      button.className = "picker-result";
-      button.type = "button";
-      button.innerHTML = `
-        ${stickerThumb(card)}
-        <span><strong>${escapeHtml(card.codigo)}</strong>${escapeHtml(card.label)}</span>
-        <small>${escapeHtml(card.groupLabel)} · ${qty(card.codigo) ? `tenes x${qty(card.codigo)}` : "te falta"}</small>
-      `;
-      button.addEventListener("click", () => addPackageCard(card.codigo));
-      return button;
-    });
-    els.packageResults.replaceChildren(...nodes);
-  }
-
-  function packageSortScore(card) {
-    let score = qty(card.codigo) === 0 ? 4 : 1;
-    if (state.group !== "all" && card.group === state.group) score += 3;
-    return score;
-  }
-
-  function addPackageCard(code) {
-    if (state.packageDraft.includes(code)) return;
-    state.packageDraft.push(code);
-    els.packageSearch.value = "";
-    renderPackagePicker();
-    els.packageSearch.focus();
-  }
-
-  function showPackageMessage(message, ok = true) {
-    els.packageValidation.textContent = message;
-    els.packageValidation.classList.toggle("ok", ok);
   }
 
   function renderTradePanel() {
@@ -871,9 +777,345 @@
     const youCanGive = cards.filter((card) => qty(card.codigo) > 1 && qtyFrom(friend, card.codigo) === 0);
     const swaps = Math.min(friendCanGive.length, youCanGive.length);
 
-    els.compareSummary.textContent = `${friendCanGive.length} te sirven · ${youCanGive.length} le sirven · ${swaps} cambios posibles`;
+    const friendName = state.friendLabel ? `${state.friendLabel}: ` : "";
+    els.compareSummary.textContent = `${friendName}${friendCanGive.length} te sirven · ${youCanGive.length} le sirven · ${swaps} cambios posibles`;
     els.friendCanGive.replaceChildren(...listNodes(friendCanGive.slice(0, 80), (card) => `amigo x${qtyFrom(friend, card.codigo) - 1}`));
     els.youCanGive.replaceChildren(...listNodes(youCanGive.slice(0, 80), (card) => `vos x${qty(card.codigo) - 1}`));
+  }
+
+  function syncFromBackendOnLoad() {
+    if (!state.backendUrl) return;
+    if (!state.auth?.token) return;
+    syncFromBackend({ applyOwn: true, manual: false });
+  }
+
+  async function syncFromBackend({ applyOwn = true, manual = false } = {}) {
+    const backendUrl = normalizedBackendUrl();
+    if (!backendUrl) {
+      if (manual) {
+        setOnlineStatus("Configura la URL del backend.", false);
+        els.backendUrlInput.focus();
+      }
+      return;
+    }
+
+    setOnlineBusy(true);
+    setOnlineStatus(manual ? "Sincronizando con backend..." : "Actualizando desde backend...", true);
+    try {
+      if (applyOwn && state.auth?.token) {
+        const ownResponse = await fetch(`${backendUrl}/api/me/profile`, { headers: authHeaders(false) });
+        const ownData = await ownResponse.json().catch(() => ({}));
+      if (!ownResponse.ok) throw new Error(ownData.message || ownData.error || `Backend respondio ${ownResponse.status}.`);
+        if (ownData.profile) {
+          applyProfileToManager(ownData.profile);
+          setOnlineStatus(`Status actualizado desde tu cuenta: ${ownData.profile.user || "Sin usuario"}.`, true);
+        } else if (manual) {
+          setOnlineStatus("Tu cuenta todavia no tiene status sincronizado desde el plugin.", false);
+        }
+      }
+
+      const response = await fetch(`${backendUrl}/api/profiles`, { headers: authHeaders(false) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || `Backend respondio ${response.status}.`);
+      state.onlineProfiles = Array.isArray(data.profiles) ? data.profiles : [];
+
+      const ownProfile = applyOwn && !state.auth?.token ? findOwnProfile(state.onlineProfiles) : null;
+      if (ownProfile) {
+        applyProfileToManager(ownProfile);
+        setOnlineStatus(`Status actualizado desde backend: ${ownProfile.user || "Sin usuario"}.`, true);
+      } else {
+        setOnlineStatus(`${state.onlineProfiles.length} perfil${state.onlineProfiles.length === 1 ? "" : "es"} sincronizado${state.onlineProfiles.length === 1 ? "" : "s"}.`, true);
+      }
+      renderOnlineFriends();
+    } catch (error) {
+      if (manual) setOnlineStatus(error.message || "No pude sincronizar con el backend.", false);
+      else setOnlineStatus("No pude actualizar desde backend. Uso el progreso local.", false);
+    } finally {
+      setOnlineBusy(false);
+    }
+  }
+
+  async function loadOnlineFriends() {
+    return syncFromBackend({ applyOwn: false, manual: true });
+  }
+
+  async function syncManagerStatus() {
+    const backendUrl = normalizedBackendUrl();
+    if (!backendUrl) {
+      setOnlineStatus("Configura la URL del backend.", false);
+      els.backendUrlInput.focus();
+      return;
+    }
+    if (!state.username) {
+      const name = prompt("Nombre para sincronizar tu Manager:");
+      if (name === null) return;
+      state.username = name.trim() || "Sin usuario";
+      els.usernameInput.value = state.username;
+      saveUsername();
+    }
+
+    setOnlineBusy(true);
+    setOnlineStatus("Sincronizando este Manager...", true);
+    try {
+      const response = await fetch(`${backendUrl}/api/profiles`, {
+        method: "POST",
+        headers: authHeaders(true),
+        body: JSON.stringify({
+          ...progressPayload(),
+          id: managerProfileId(),
+          source: "manager"
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || `Backend respondio ${response.status}.`);
+      if (data.profile?.id) {
+        state.ownProfileId = data.profile.id;
+        localStorage.setItem(OWN_PROFILE_KEY, state.ownProfileId);
+      }
+      setOnlineStatus(`Manager sincronizado como ${data.profile?.user || state.username}.`, true);
+      await syncFromBackend({ applyOwn: true, manual: false });
+    } catch (error) {
+      setOnlineStatus(error.message || "No pude sincronizar este Manager.", false);
+      setOnlineBusy(false);
+    }
+  }
+
+  function findOwnProfile(profiles) {
+    if (!profiles.length) return null;
+    const byId = state.ownProfileId && profiles.find((profile) => profile.id === state.ownProfileId);
+    if (byId) return byId;
+
+    const managerId = managerProfileId();
+    const byManagerId = profiles.find((profile) => profile.id === managerId);
+    if (byManagerId) return byManagerId;
+
+    const currentUser = normalize(state.username);
+    if (currentUser) {
+      const byUser = profiles.find((profile) => normalize(profile.user) === currentUser);
+      if (byUser) return byUser;
+    }
+
+    const latestPluginProfile = profiles.find((profile) => profile.source === "plugin");
+    if (latestPluginProfile) return latestPluginProfile;
+
+    const hasLocalProgress = Object.keys(state.quantities).length > 0;
+    if (!hasLocalProgress && profiles.length === 1) return profiles[0];
+    return null;
+  }
+
+  async function loginManager(mode) {
+    const backendUrl = normalizedBackendUrl();
+    const username = els.landingSyncUserInput.value.trim();
+    const password = els.landingSyncPasswordInput.value;
+    if (!backendUrl || !username || !password) {
+      setOnlineStatus("Completa backend, usuario y clave.", false);
+      setLandingAuthStatus("Completa backend, usuario y clave.", false);
+      return;
+    }
+
+    setOnlineBusy(true);
+    setOnlineStatus(mode === "register" ? "Creando usuario..." : "Entrando...", true);
+    try {
+      const response = await fetch(`${backendUrl}/api/auth/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName: username })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || `Backend respondio ${response.status}.`);
+      state.auth = data;
+      localStorage.setItem(AUTH_KEY, JSON.stringify(data));
+      els.landingSyncPasswordInput.value = "";
+      if (!state.username) {
+        state.username = data.user?.displayName || username;
+        els.usernameInput.value = state.username;
+        saveUsername();
+      }
+      renderAuth();
+      setOnlineStatus(`Logueado como ${data.user?.displayName || username}.`, true);
+      setLandingAuthStatus("", true);
+      await syncFromBackend({ applyOwn: true, manual: false });
+    } catch (error) {
+      setOnlineStatus(error.message || "No pude iniciar sesion.", false);
+      setLandingAuthStatus(error.message || "No pude iniciar sesion.", false);
+    } finally {
+      setOnlineBusy(false);
+    }
+  }
+
+  function logoutManager() {
+    state.auth = null;
+    state.friendQuantities = null;
+    state.friendLabel = "";
+    state.onlineProfiles = [];
+    state.selectedOnlineProfileId = "";
+    state.ownProfileId = "";
+    localStorage.removeItem(AUTH_KEY);
+    localStorage.removeItem(OWN_PROFILE_KEY);
+    els.landingSyncPasswordInput.value = "";
+    renderAuth();
+    clearFriendProgress();
+    renderOnlineFriends();
+    setOnlineStatus("Sesion cerrada.", true);
+    setLandingAuthStatus("Sesion cerrada.", true);
+  }
+
+  function renderAuth() {
+    const logged = Boolean(state.auth?.token);
+    els.authLanding.classList.toggle("hidden", logged);
+    els.shell.classList.toggle("hidden", !logged);
+    if (logged) {
+      const username = state.auth.user?.username || state.auth.user?.displayName || "";
+      els.landingSyncUserInput.value = username;
+      els.syncAccountLabel.textContent = `Cuenta: ${state.auth.user?.displayName || username}`;
+    } else {
+      els.syncAccountLabel.textContent = "Sin cuenta activa";
+    }
+  }
+
+  function setLandingAuthStatus(message, ok) {
+    els.landingAuthStatus.textContent = message;
+    els.landingAuthStatus.classList.toggle("ok", Boolean(ok));
+  }
+
+  function applyProfileToManager(profile) {
+    state.quantities = quantitiesFromPayload(profile);
+    if (profile.user && !state.username) {
+      state.username = String(profile.user).trim();
+      els.usernameInput.value = state.username;
+      saveUsername();
+    }
+    if (profile.id) {
+      state.ownProfileId = profile.id;
+      localStorage.setItem(OWN_PROFILE_KEY, profile.id);
+    }
+    saveProgress();
+    render();
+  }
+
+  function renderOnlineFriends() {
+    if (!els.onlineFriendsList) return;
+    if (!state.onlineProfiles.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No hay amigos cargados todavia.";
+      els.onlineFriendsList.replaceChildren(empty);
+      return;
+    }
+
+    const nodes = state.onlineProfiles.map((profile) => {
+      const trade = onlineTradeSummary(profile.quantities || {});
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = profile.id === state.selectedOnlineProfileId ? "online-friend active" : "online-friend";
+      button.innerHTML = `
+        <strong>${escapeHtml(profile.user || "Sin usuario")}</strong>
+        <span>${escapeHtml(trade.friendCanGive)} te sirven - ${escapeHtml(trade.youCanGive)} le sirven</span>
+        <small>${escapeHtml(profile.source || "sync")} - ${escapeHtml(dateLabel(profile.updatedAt || profile.exportedAt))}</small>
+      `;
+      button.addEventListener("click", () => selectOnlineFriend(profile));
+      return button;
+    });
+    els.onlineFriendsList.replaceChildren(...nodes);
+  }
+
+  function selectOnlineFriend(profile) {
+    state.selectedOnlineProfileId = profile.id || "";
+    state.friendQuantities = quantitiesFromPayload(profile);
+    state.friendLabel = profile.user || "";
+    renderComparePanel();
+    renderExchangePickers();
+    renderOnlineFriends();
+  }
+
+  async function searchFriends() {
+    const backendUrl = normalizedBackendUrl();
+    const query = els.friendSearchInput.value.trim();
+    if (!backendUrl || query.length < 2) {
+      els.friendSearchResults.replaceChildren();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${backendUrl}/api/users?q=${encodeURIComponent(query)}`, { headers: authHeaders(false) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || `Backend respondio ${response.status}.`);
+      renderFriendSearchResults(Array.isArray(data.users) ? data.users : []);
+    } catch (error) {
+      const item = document.createElement("p");
+      item.className = "empty";
+      item.textContent = error.message || "No pude buscar usuarios.";
+      els.friendSearchResults.replaceChildren(item);
+    }
+  }
+
+  function renderFriendSearchResults(users) {
+    if (!users.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "Sin usuarios encontrados.";
+      els.friendSearchResults.replaceChildren(empty);
+      return;
+    }
+
+    const nodes = users.map((user) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "online-friend";
+      button.disabled = !user.hasProfile;
+      button.innerHTML = `
+        <strong>${escapeHtml(user.displayName || user.username)}</strong>
+        <span>@${escapeHtml(user.username)} - ${user.hasProfile ? "status disponible" : "sin status sincronizado"}</span>
+        <small>${escapeHtml(user.updatedAt ? dateLabel(user.updatedAt) : "Esperando plugin")}</small>
+      `;
+      button.addEventListener("click", () => selectFriendUser(user));
+      return button;
+    });
+    els.friendSearchResults.replaceChildren(...nodes);
+  }
+
+  async function selectFriendUser(user) {
+    const backendUrl = normalizedBackendUrl();
+    setOnlineStatus(`Cargando status de ${user.displayName || user.username}...`, true);
+    try {
+      const response = await fetch(`${backendUrl}/api/users/${encodeURIComponent(user.username)}/profile`, { headers: authHeaders(false) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || `Backend respondio ${response.status}.`);
+      selectOnlineFriend(data.profile);
+      setOnlineStatus(`Comparando con ${data.profile.user || user.username}.`, true);
+    } catch (error) {
+      setOnlineStatus(error.message || "No pude cargar ese usuario.", false);
+    }
+  }
+
+  function onlineTradeSummary(friendQuantities) {
+    const friendCanGive = cards.filter((card) => qty(card.codigo) === 0 && qtyFrom(friendQuantities, card.codigo) > 1).length;
+    const youCanGive = cards.filter((card) => qty(card.codigo) > 1 && qtyFrom(friendQuantities, card.codigo) === 0).length;
+    return { friendCanGive, youCanGive };
+  }
+
+  function normalizedBackendUrl() {
+    state.backendUrl = els.backendUrlInput.value.trim().replace(/\/+$/, "");
+    saveBackendUrl();
+    return state.backendUrl;
+  }
+
+  function setOnlineBusy(busy) {
+    els.loadFriendsBtn.disabled = busy;
+    els.syncManagerBtn.disabled = busy;
+  }
+
+  function setOnlineStatus(message, ok) {
+    els.onlineStatus.textContent = message;
+    els.onlineStatus.classList.toggle("ok", Boolean(ok));
+  }
+
+  function debounce(fn, delay) {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fn(...args), delay);
+    };
   }
 
   function listNodes(list, suffix) {
@@ -981,6 +1223,32 @@
 
   function saveExchanges() {
     localStorage.setItem(EXCHANGE_KEY, JSON.stringify(state.exchanges));
+  }
+
+  function loadBackendUrl() {
+    return localStorage.getItem(BACKEND_URL_KEY) || "http://localhost:8787";
+  }
+
+  function saveBackendUrl() {
+    localStorage.setItem(BACKEND_URL_KEY, state.backendUrl);
+  }
+
+  function loadAuth() {
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_KEY));
+    } catch {
+      return null;
+    }
+  }
+
+  function authHeaders(withJson) {
+    const headers = withJson ? { "Content-Type": "application/json" } : {};
+    if (state.auth?.token) headers.Authorization = `Bearer ${state.auth.token}`;
+    return headers;
+  }
+
+  function managerProfileId() {
+    return `manager-${fileSafeName(state.username || "local") || "local"}`;
   }
 
   function progressPayload() {
@@ -1163,7 +1431,10 @@
     parseProgressFile(file)
       .then((payload) => {
         state.friendQuantities = quantitiesFromPayload(payload);
+        state.friendLabel = payload.user || "";
+        state.selectedOnlineProfileId = "";
         renderComparePanel();
+        renderOnlineFriends();
       })
       .catch((error) => alert(error.message || "No pude leer ese archivo de progreso."));
     event.target.value = "";
@@ -1226,7 +1497,10 @@
 
   function clearFriendProgress() {
     state.friendQuantities = null;
+    state.friendLabel = "";
+    state.selectedOnlineProfileId = "";
     renderComparePanel();
+    renderOnlineFriends();
   }
 
   function quantitiesFromPayload(payload) {

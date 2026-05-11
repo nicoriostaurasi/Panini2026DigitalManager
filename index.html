@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
   <head>
     <meta charset="utf-8">
@@ -7,6 +7,38 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
+    <section id="authLanding" class="auth-landing">
+      <div class="auth-card">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span class="ball"></span>
+            <span class="pitch-line"></span>
+          </div>
+          <div>
+            <p class="eyebrow">Digital Panini 2026</p>
+            <h1>Album Manager</h1>
+          </div>
+        </div>
+        <label class="sync-field">
+          <span>Backend</span>
+          <input id="landingBackendUrlInput" type="url" placeholder="http://localhost:8787 o URL de ngrok">
+        </label>
+        <label class="sync-field">
+          <span>Usuario sync</span>
+          <input id="landingSyncUserInput" type="text" autocomplete="username" placeholder="usuario">
+        </label>
+        <label class="sync-field">
+          <span>Clave</span>
+          <input id="landingSyncPasswordInput" type="password" autocomplete="current-password" placeholder="clave">
+        </label>
+        <div class="auth-actions">
+          <button id="landingLoginBtn" class="primary" type="button">Login</button>
+          <button id="landingRegisterBtn" class="ghost" type="button">Crear usuario</button>
+        </div>
+        <p id="landingAuthStatus" class="compare-summary"></p>
+      </div>
+    </section>
+
     <main class="shell">
       <header class="topbar">
         <div class="brand">
@@ -30,6 +62,7 @@
             Importar
             <input id="importFile" type="file" accept="application/json,image/png,image/jpeg,image/webp">
           </label>
+          <button id="logoutManagerBtn" class="ghost" type="button" title="Cerrar sesión">Salir</button>
         </div>
       </header>
 
@@ -81,7 +114,6 @@
               <h2 id="currentGroup">Todas las figuritas</h2>
               <p id="currentSummary"></p>
             </div>
-            <button id="toggleBulkBtn" class="primary" type="button">Cargar paquete</button>
           </div>
 
           <section id="bulkPanel" class="bulk-panel hidden">
@@ -117,6 +149,27 @@
             <button id="clearCompareBtn" class="link-btn hidden" type="button">Quitar comparación</button>
           </section>
 
+          <section class="online-box">
+            <h3>Sincronización</h3>
+            <label class="sync-field">
+              <span>Backend</span>
+              <input id="backendUrlInput" type="url" placeholder="http://localhost:8787 o URL de ngrok">
+            </label>
+            <p id="syncAccountLabel" class="account-pill">Cuenta activa</p>
+            <div class="online-actions">
+              <button id="loadFriendsBtn" class="primary full-width" type="button">Buscar cambios</button>
+              <button id="syncManagerBtn" class="ghost full-width" type="button">Sincronizar este Manager</button>
+            </div>
+            <p id="onlineStatus" class="compare-summary">Usa el plugin para subir status de amigos y despues buscalos aca.</p>
+            <label class="sync-field">
+              <span>Buscar amigo</span>
+              <input id="friendSearchInput" type="search" placeholder="username">
+            </label>
+            <div id="friendSearchResults" class="online-friends"></div>
+            <h3>Amigos online</h3>
+            <div id="onlineFriendsList" class="online-friends"></div>
+          </section>
+
           <section id="friendCanGiveBlock" class="hidden">
             <h3>Te puede dar</h3>
             <div id="friendCanGive" class="mini-list"></div>
@@ -138,32 +191,6 @@
         </aside>
       </section>
     </main>
-
-    <div id="packageModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="packageModalTitle">
-      <section class="modal-card compact-modal">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">Paquete digital</p>
-            <h2 id="packageModalTitle">Cargar paquete</h2>
-          </div>
-          <button id="closePackageBtn" class="ghost icon-btn" type="button" aria-label="Cerrar">x</button>
-        </div>
-
-        <form id="packageForm" class="exchange-form">
-          <label>
-            <span>Buscar figurita</span>
-            <input id="packageSearch" type="search" placeholder="Buscar codigo, nombre o seleccion">
-          </label>
-          <div id="packageSelected" class="selected-cards package-selected"></div>
-          <div id="packageResults" class="picker-results package-results"></div>
-          <p id="packageValidation" class="form-message ok" aria-live="polite"></p>
-          <div class="modal-actions">
-            <button class="primary" type="submit">Agregar al album</button>
-            <button id="resetPackageBtn" class="ghost" type="button">Limpiar</button>
-          </div>
-        </form>
-      </section>
-    </div>
 
     <div id="exchangeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="exchangeModalTitle">
       <section class="modal-card">
@@ -227,11 +254,7 @@
           <strong class="name"></strong>
           <small class="group"></small>
         </div>
-        <div class="qty">
-          <button class="minus" type="button" title="Restar">−</button>
-          <span class="qty-value">0</span>
-          <button class="plus" type="button" title="Sumar">+</button>
-        </div>
+        <div class="qty">`r`n          <span class="qty-value">0</span>`r`n        </div>
       </article>
     </template>
 
@@ -242,3 +265,4 @@
     <script src="app.js"></script>
   </body>
 </html>
+

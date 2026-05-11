@@ -45,6 +45,34 @@ button {
   padding: 24px 0;
 }
 
+.auth-landing {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-card {
+  display: grid;
+  gap: 16px;
+  width: min(460px, 100%);
+  padding: 24px;
+  background: rgba(13, 17, 16, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.auth-card .brand {
+  margin-bottom: 6px;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .topbar,
 .tools,
 .content-head,
@@ -194,8 +222,7 @@ h3 {
 .primary,
 .ghost,
 .link-btn,
-.segmented button,
-.qty button {
+.segmented button {
   border: 1px solid transparent;
   border-radius: 8px;
   min-height: 38px;
@@ -1093,6 +1120,7 @@ h3 {
 
 .album-grid .card.repeated {
   border-color: rgba(224, 178, 77, 0.88);
+  box-shadow: inset 0 0 0 3px rgba(224, 178, 77, 0.2);
 }
 
 .album-grid .card.emblem {
@@ -1224,64 +1252,21 @@ h3 {
 }
 
 .qty {
-  display: grid;
-  grid-template-rows: 32px 30px 32px;
-  width: 38px;
-  align-items: center;
-  justify-items: center;
+  display: inline-grid;
+  min-width: 34px;
+  min-height: 28px;
+  place-items: center;
+  padding: 0 8px;
+  background: #090d0b;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--green-dark);
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .album-grid .qty {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  right: auto;
-  top: 50%;
-  bottom: auto;
-  transform: translate(-50%, -50%) scale(0.96);
-  grid-template-columns: 26px 28px 26px;
-  grid-template-rows: 28px;
-  width: auto;
-  padding: 3px;
-  background: rgba(7, 10, 9, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.38);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease, transform 150ms ease;
-  backdrop-filter: blur(8px);
-}
-
-.album-grid .card:hover .qty,
-.album-grid .card:focus-within .qty {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.qty button {
-  width: 32px;
-  min-height: 32px;
-  padding: 0;
-  background: var(--panel-soft);
-  color: var(--ink);
-  border-color: var(--line);
-}
-
-.album-grid .qty button {
-  width: 24px;
-  min-height: 24px;
-  border-radius: 999px;
-}
-
-.album-grid .qty-value {
-  color: #f8faf3;
-  font-size: 13px;
-}
-
-.qty-value {
-  font-weight: 850;
+  display: none;
 }
 
 .mini-list {
@@ -1291,7 +1276,8 @@ h3 {
 }
 
 .compare-box,
-.exchange-box {
+.exchange-box,
+.online-box {
   display: grid;
   gap: 10px;
   margin-bottom: 18px;
@@ -1302,7 +1288,8 @@ h3 {
 }
 
 .compare-box h3,
-.exchange-box h3 {
+.exchange-box h3,
+.online-box h3 {
   margin-bottom: 0;
   color: var(--green);
 }
@@ -1316,6 +1303,74 @@ h3 {
 
 .full-width {
   width: 100%;
+}
+
+.sync-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sync-field input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  background: #090d0b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  outline: 0;
+}
+
+.online-actions,
+.online-friends {
+  display: grid;
+  gap: 8px;
+}
+
+.account-pill {
+  margin: 0;
+  padding: 9px 10px;
+  background: #090d0b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--green-dark);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.online-friend {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px;
+  background: #090d0b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.online-friend.active,
+.online-friend:hover {
+  border-color: var(--green);
+  background: rgba(49, 197, 138, 0.08);
+}
+
+.online-friend strong {
+  font-size: 13px;
+}
+
+.online-friend span,
+.online-friend small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.compare-summary.ok {
+  color: var(--green-dark);
 }
 
 .compact-list {
