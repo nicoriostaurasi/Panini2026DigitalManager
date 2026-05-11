@@ -3,6 +3,7 @@
   const USER_KEY = "digital-panini-2026-user-v1";
   const EXCHANGE_KEY = "digital-panini-2026-exchanges-v1";
   const BACKEND_URL_KEY = "digital-panini-2026-sync-backend-url";
+  const DEFAULT_BACKEND_URL = "https://panini2026digitalbackend.onrender.com";
   const OWN_PROFILE_KEY = "digital-panini-2026-own-profile-id";
   const AUTH_KEY = "digital-panini-2026-sync-auth";
   const base = window.CROMOS_BASE || {};
@@ -918,7 +919,7 @@
     try {
       const response = await fetch(`${backendUrl}/api/auth/${mode}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(true),
         body: JSON.stringify({ username, password, displayName: username })
       });
       const data = await response.json().catch(() => ({}));
@@ -1226,7 +1227,7 @@
   }
 
   function loadBackendUrl() {
-    return localStorage.getItem(BACKEND_URL_KEY) || "http://localhost:8787";
+    return localStorage.getItem(BACKEND_URL_KEY) || DEFAULT_BACKEND_URL;
   }
 
   function saveBackendUrl() {
@@ -1242,7 +1243,10 @@
   }
 
   function authHeaders(withJson) {
-    const headers = withJson ? { "Content-Type": "application/json" } : {};
+    const headers = {
+      "ngrok-skip-browser-warning": "true",
+      ...(withJson ? { "Content-Type": "application/json" } : {})
+    };
     if (state.auth?.token) headers.Authorization = `Bearer ${state.auth.token}`;
     return headers;
   }
