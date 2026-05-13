@@ -3,7 +3,7 @@
   const USER_KEY = "digital-panini-2026-user-v1";
   const EXCHANGE_KEY = "digital-panini-2026-exchanges-v1";
   const BACKEND_URL_KEY = "digital-panini-2026-sync-backend-url";
-  const DEFAULT_BACKEND_URL = "https://panini2026digitalbackend.onrender.com";
+  const DEFAULT_BACKEND_URL = defaultBackendUrl();
   const OWN_PROFILE_KEY = "digital-panini-2026-own-profile-id";
   const AUTH_KEY = "digital-panini-2026-sync-auth";
   const base = window.CROMOS_BASE || {};
@@ -1228,6 +1228,12 @@
 
   function loadBackendUrl() {
     return localStorage.getItem(BACKEND_URL_KEY) || DEFAULT_BACKEND_URL;
+  }
+
+  function defaultBackendUrl() {
+    if (window.PANINI_BACKEND_URL) return window.PANINI_BACKEND_URL;
+    if (window.location.protocol === "http:" || window.location.protocol === "https:") return window.location.origin;
+    return "https://panini2026digitalbackend.onrender.com";
   }
 
   function saveBackendUrl() {
